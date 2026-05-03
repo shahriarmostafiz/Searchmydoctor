@@ -1,0 +1,474 @@
+{% extends "ui/admin/admin_base.html" %}
+{% block title %}Edit Doctor{% endblock %}
+
+{% block admin_content %}
+<h3 class="mb-3">Edit Doctor</h3>
+
+<form method="post" id="doctorForm">
+  {% csrf_token %}
+
+  <div class="row g-3">
+    <div class="col-lg-6">
+      <div class="card">
+        <div class="card-body">
+          <h5 class="mb-3">Doctor Info</h5>
+
+          <div class="mb-3">
+            <label class="form-label">Full Name *</label>
+            <input class="form-control" name="full_name" required value="{{ doctor.full_name }}">
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Gender</label>
+            <select class="form-select" name="gender">
+              <option value="Male" {% if doctor.gender == 'Male' %}selected{% endif %}>Male</option>
+              <option value="Female" {% if doctor.gender == 'Female' %}selected{% endif %}>Female</option>
+              <option value="Other" {% if doctor.gender == 'Other' %}selected{% endif %}>Other</option>
+            </select>
+          </div>
+
+          <div class="row g-2">
+            <div class="col-md-6">
+              <label class="form-label">Phone</label>
+              <input class="form-control" name="phone" value="{{ doctor.phone|default:'' }}">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Email</label>
+              <input class="form-control" type="email" name="email" value="{{ doctor.email|default:'' }}">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-6">
+      <div class="card">
+        <div class="card-body">
+          <h5 class="mb-3">Specializations</h5>
+
+          <label class="form-label">Select or type new (tags)</label>
+          <select id="specSelect" name="specialization_names[]" class="form-select" multiple>
+            {% for s in specializations %}
+              <option value="{{ s.name }}" {% if s.name in selected_specs %}selected{% endif %}>
+                {{ s.name }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12">
+      <div class="card">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Chambers</h5>
+            <button type="button" class="btn btn-sm btn-outline-primary" id="addChamberBtn">
+              + Add Chamber
+            </button>
+          </div>
+
+          <input type="hidden" name="chamber_count" id="chamberCount" value="0">
+          <div id="chambersWrap" class="mt-3"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 d-flex justify-content-end gap-2">
+      <a href="{% url 'doctor_list_ui' %}" class="btn btn-outline-secondary">Cancel</a>
+      <button class="btn btn-primary" type="submit">Update Doctor</button>
+    </div>
+  </div>
+</form>
+
+{{ chamber_payload|json_script:"chamber-data" }}
+{% endblock %}
+
+{% block extra_js %}
+<style>
+  .sched-row .form-label {
+    margin-bottom: 8px;
+    font-weight: 600;
+  }
+
+  .sched-row .form-select,
+  .sched-row .btn,
+  .chamber-block .form-control,
+  .chamber-block .form-select {
+    height: 46px;
+  }
+
+  .sched-row small {
+    min-height: 20px;
+  }
+
+  .schedule-section-title {
+    font-weight: 700;
+    font-size: 1.05rem;
+  }
+</style>
+
+<script>
+$(function () {
+  if (typeof $.fn.select2 !== "undefined") {
+    $("#specSelect").select2({
+      tags: true,
+      width: "100%",
+      placeholder: "Select or type specializations..."
+    });
+  }
+
+  let initialData = [];
+  try {
+    const chamberDataEl = document.getElementById("chamber-data");
+    if (chamberDataEl) {
+      initialData = JSON.parse(chamberDataEl.textContent || "[]");
+    }
+  } catch (e) {
+    console.error("Failed to parse chamber JSON", e);
+    initialData = [];
+  }
+
+  const days = [
+    { v: 0, t: "Monday" },
+    { v: 1, t: "Tuesday" },
+    { v: 2, t: "Wednesday" },
+    { v: 3, t: "Thursday" },
+    { v: 4, t: "Friday" },
+    { v: 5, t: "Saturday" },
+    { v: 6, t: "Sunday" }
+  ];
+
+  const hourOptions = Array.from({ length: 12 }, (_, i) => {
+    const h = i + 1;
+    return `<option value="${h}">${h}</option>`;
+  }).join("");
+
+  const minuteOptions = `
+    <option value="00">00</option>
+    <option value="30">30</option>
+  `;
+
+  function esc(val) {
+    return String(val || "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;");
+  }
+
+  function time24ToParts(time24) {
+    if (!time24 || !time24.includes(":")) {
+      return { hour12: "9", minute: "00", ampm: "AM" };
+    }
+
+    let [hour, minute] = time24.split(":");
+    hour = parseInt(hour, 10);
+    minute = minute || "00";
+    minute = (minute === "30") ? "30" : "00";
+
+    const ampm = hour >= 12 ? "PM" : "AM";
+    let hour12 = hour % 12;
+    hour12 = hour12 === 0 ? 12 : hour12;
+
+    return {
+      hour12: String(hour12),
+      minute: minute,
+      ampm: ampm
+    };
+  }
+
+  function partsToTime24(hour12, minute, ampm) {
+    let h = parseInt(hour12, 10);
+    if (isNaN(h)) h = 12;
+
+    if (ampm === "AM") {
+      if (h === 12) h = 0;
+    } else {
+      if (h !== 12) h += 12;
+    }
+
+    return String(h).padStart(2, "0") + ":" + String(minute).padStart(2, "0");
+  }
+
+  function formatDisplay(hour12, minute, ampm) {
+    return `${hour12}:${minute} ${ampm}`;
+  }
+
+  function chamberTemplate(i, data = {}) {
+    return `
+      <div class="border rounded p-3 mb-3 chamber-block" data-idx="${i}">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h6 class="mb-0">Chamber #<span class="chamber-no">${i + 1}</span></h6>
+          <button type="button" class="btn btn-sm btn-outline-danger removeChamberBtn">Remove</button>
+        </div>
+
+        <div class="row g-2">
+          <div class="col-md-4">
+            <label class="form-label">Name *</label>
+            <input class="form-control chamber-name" required value="${esc(data.name)}">
+          </div>
+          <div class="col-md-8">
+            <label class="form-label">Address *</label>
+            <input class="form-control chamber-address" required value="${esc(data.address)}">
+          </div>
+
+          <div class="col-md-3">
+            <label class="form-label">State</label>
+            <input class="form-control chamber-state" value="${esc(data.state)}">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">City</label>
+            <input class="form-control chamber-city" value="${esc(data.city)}">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Zip</label>
+            <input class="form-control chamber-zip" value="${esc(data.zip)}">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Phone</label>
+            <input class="form-control chamber-phone" value="${esc(data.phone)}">
+          </div>
+
+          <div class="col-md-4">
+            <label class="form-label">Timezone</label>
+            <input class="form-control chamber-timezone" value="${esc(data.timezone || 'UTC')}">
+          </div>
+
+          <div class="col-md-2">
+            <label class="form-label">Active</label>
+            <select class="form-select chamber-is-active">
+              <option value="1" ${(data.is_active !== false) ? "selected" : ""}>Yes</option>
+              <option value="0" ${(data.is_active === false) ? "selected" : ""}>No</option>
+            </select>
+          </div>
+        </div>
+
+        <hr class="my-3">
+
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <div class="schedule-section-title">Schedules</div>
+          <button type="button" class="btn btn-sm btn-outline-primary addSchedBtn">+ Add Schedule</button>
+        </div>
+
+        <input type="hidden" class="schedCount" value="0">
+        <div class="schedWrap mt-2"></div>
+      </div>
+    `;
+  }
+
+  function schedRowTemplate(row = {}) {
+    const opts = days.map(d =>
+      `<option value="${d.v}" ${String(row.day) === String(d.v) ? "selected" : ""}>${d.t}</option>`
+    ).join("");
+
+    const startParts = time24ToParts(row.start || "09:00");
+    const endParts = time24ToParts(row.end || "09:30");
+
+    return `
+      <div class="sched-row border rounded p-3 mb-2">
+        <div class="row g-3 align-items-end">
+
+          <div class="col-lg-3 col-md-6">
+            <label class="form-label">Day</label>
+            <select class="form-select sched-day">
+              ${opts}
+            </select>
+          </div>
+
+          <div class="col-lg-4 col-md-6">
+            <label class="form-label">Start Time</label>
+            <div class="row g-2">
+              <div class="col-4">
+                <select class="form-select sched-start-hour">
+                  ${hourOptions}
+                </select>
+              </div>
+              <div class="col-4">
+                <select class="form-select sched-start-minute">
+                  ${minuteOptions}
+                </select>
+              </div>
+              <div class="col-4">
+                <select class="form-select sched-start-ampm">
+                  <option value="AM" ${startParts.ampm === "AM" ? "selected" : ""}>AM</option>
+                  <option value="PM" ${startParts.ampm === "PM" ? "selected" : ""}>PM</option>
+                </select>
+              </div>
+            </div>
+            <input type="hidden" class="sched-start">
+          </div>
+
+          <div class="col-lg-4 col-md-6">
+            <label class="form-label">End Time</label>
+            <div class="row g-2">
+              <div class="col-4">
+                <select class="form-select sched-end-hour">
+                  ${hourOptions}
+                </select>
+              </div>
+              <div class="col-4">
+                <select class="form-select sched-end-minute">
+                  ${minuteOptions}
+                </select>
+              </div>
+              <div class="col-4">
+                <select class="form-select sched-end-ampm">
+                  <option value="AM" ${endParts.ampm === "AM" ? "selected" : ""}>AM</option>
+                  <option value="PM" ${endParts.ampm === "PM" ? "selected" : ""}>PM</option>
+                </select>
+              </div>
+            </div>
+            <input type="hidden" class="sched-end">
+            
+          </div>
+
+          <div class="col-lg-1 col-md-6">
+            <button type="button" class="btn btn-danger  removeSchedBtn">
+                <i class="bi bi-trash"></i> 
+            </button>
+          </div>
+
+        </div>
+      </div>
+    `;
+  }
+
+  function syncScheduleRow(row) {
+    const startHour = row.find(".sched-start-hour").val();
+    const startMinute = row.find(".sched-start-minute").val();
+    const startAmpm = row.find(".sched-start-ampm").val();
+
+    const endHour = row.find(".sched-end-hour").val();
+    const endMinute = row.find(".sched-end-minute").val();
+    const endAmpm = row.find(".sched-end-ampm").val();
+
+    const start24 = partsToTime24(startHour, startMinute, startAmpm);
+    const end24 = partsToTime24(endHour, endMinute, endAmpm);
+
+    row.find(".sched-start").val(start24);
+    row.find(".sched-end").val(end24);
+
+    row.find(".sched-start-display").text(formatDisplay(startHour, startMinute, startAmpm));
+    row.find(".sched-end-display").text(formatDisplay(endHour, endMinute, endAmpm));
+  }
+
+  function syncAllSchedules() {
+    $(".sched-row").each(function () {
+      syncScheduleRow($(this));
+    });
+  }
+
+  function refreshChamberCount() {
+    $("#chamberCount").val($(".chamber-block").length);
+  }
+
+  function reindexAll() {
+    $(".chamber-block").each(function (i) {
+      const chamber = $(this);
+      chamber.attr("data-idx", i);
+      chamber.find(".chamber-no").text(i + 1);
+
+      chamber.find(".chamber-name").attr("name", `chamber_${i}_name`);
+      chamber.find(".chamber-address").attr("name", `chamber_${i}_address`);
+      chamber.find(".chamber-state").attr("name", `chamber_${i}_state`);
+      chamber.find(".chamber-city").attr("name", `chamber_${i}_city`);
+      chamber.find(".chamber-zip").attr("name", `chamber_${i}_zip`);
+      chamber.find(".chamber-phone").attr("name", `chamber_${i}_phone`);
+      chamber.find(".chamber-timezone").attr("name", `chamber_${i}_timezone`);
+      chamber.find(".chamber-is-active").attr("name", `chamber_${i}_is_active`);
+
+      const rows = chamber.find(".sched-row");
+      chamber.find(".schedCount").val(rows.length).attr("name", `chamber_${i}_sched_count`);
+
+      rows.each(function (j) {
+        const row = $(this);
+        row.find(".sched-day").attr("name", `chamber_${i}_sched_${j}_day`);
+        row.find(".sched-start").attr("name", `chamber_${i}_sched_${j}_start`);
+        row.find(".sched-end").attr("name", `chamber_${i}_sched_${j}_end`);
+      });
+    });
+
+    refreshChamberCount();
+  }
+
+  function addChamber(data = {}) {
+    $("#chambersWrap").append(chamberTemplate($(".chamber-block").length, data));
+    const chamber = $(".chamber-block").last();
+
+    if (data.schedules && data.schedules.length > 0) {
+      data.schedules.forEach(function (row) {
+        chamber.find(".schedWrap").append(schedRowTemplate(row));
+      });
+    } else {
+      chamber.find(".schedWrap").append(schedRowTemplate({ start: "09:00", end: "09:30" }));
+    }
+
+    chamber.find(".sched-row").each(function () {
+      const row = $(this);
+
+      const startVal = row.find(".sched-start").val() || "09:00";
+      const endVal = row.find(".sched-end").val() || "09:30";
+
+      const sp = time24ToParts(startVal);
+      const ep = time24ToParts(endVal);
+
+      row.find(".sched-start-hour").val(sp.hour12);
+      row.find(".sched-start-minute").val(sp.minute);
+      row.find(".sched-start-ampm").val(sp.ampm);
+
+      row.find(".sched-end-hour").val(ep.hour12);
+      row.find(".sched-end-minute").val(ep.minute);
+      row.find(".sched-end-ampm").val(ep.ampm);
+
+      syncScheduleRow(row);
+    });
+
+    reindexAll();
+  }
+
+  $("#addChamberBtn").on("click", function () {
+    addChamber({});
+  });
+
+  $(document).on("click", ".removeChamberBtn", function () {
+    $(this).closest(".chamber-block").remove();
+    reindexAll();
+  });
+
+  $(document).on("click", ".addSchedBtn", function () {
+    const chamber = $(this).closest(".chamber-block");
+    chamber.find(".schedWrap").append(schedRowTemplate({ start: "09:00", end: "09:30" }));
+    syncScheduleRow(chamber.find(".sched-row").last());
+    reindexAll();
+  });
+
+  $(document).on("click", ".removeSchedBtn", function () {
+    $(this).closest(".sched-row").remove();
+    reindexAll();
+  });
+
+  $(document).on(
+    "change",
+    ".sched-start-hour, .sched-start-minute, .sched-start-ampm, .sched-end-hour, .sched-end-minute, .sched-end-ampm",
+    function () {
+      const row = $(this).closest(".sched-row");
+      syncScheduleRow(row);
+    }
+  );
+
+  $("#doctorForm").on("submit", function () {
+    syncAllSchedules();
+    reindexAll();
+  });
+
+  if (initialData.length > 0) {
+    initialData.forEach(function (ch) {
+      addChamber(ch);
+    });
+  } else {
+    addChamber({});
+  }
+});
+</script>
+{% endblock %}

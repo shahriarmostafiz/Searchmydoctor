@@ -1,0 +1,10 @@
+asgiref==3.7.2
+certifi==2026.2.25
+charset-normalizer==3.4.6
+Django==3.2.25
+idna==3.11
+PyMySQL==1.1.1
+requests==2.31.0
+sqlparse==0.4.4
+tzdata==2025.3
+urllib3==1.26.18

@@ -1,0 +1,292 @@
+{% extends "ui/admin/admin_base.html" %}
+{% block title %}Edit Doctor{% endblock %}
+
+{% block admin_content %}
+<h3 class="mb-3">Edit Doctor</h3>
+
+<form method="post" id="doctorForm">
+  {% csrf_token %}
+
+  <div class="row g-3">
+    <div class="col-lg-6">
+      <div class="card">
+        <div class="card-body">
+          <h5 class="mb-3">Doctor Info</h5>
+
+          <div class="mb-3">
+            <label class="form-label">Full Name *</label>
+            <input class="form-control" name="full_name" required value="{{ doctor.full_name }}">
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Gender</label>
+            <select class="form-select" name="gender">
+              <option value="Male" {% if doctor.gender == 'Male' %}selected{% endif %}>Male</option>
+              <option value="Female" {% if doctor.gender == 'Female' %}selected{% endif %}>Female</option>
+              <option value="Other" {% if doctor.gender == 'Other' %}selected{% endif %}>Other</option>
+            </select>
+          </div>
+
+          <div class="row g-2">
+            <div class="col-md-6">
+              <label class="form-label">Phone</label>
+              <input class="form-control" name="phone" value="{{ doctor.phone|default:'' }}">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Email</label>
+              <input class="form-control" type="email" name="email" value="{{ doctor.email|default:'' }}">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-6">
+      <div class="card">
+        <div class="card-body">
+          <h5 class="mb-3">Specializations</h5>
+
+          <label class="form-label">Select or type new (tags)</label>
+          <select id="specSelect" name="specialization_names[]" class="form-select" multiple>
+            {% for s in specializations %}
+              <option value="{{ s.name }}" {% if s.name in selected_specs %}selected{% endif %}>
+                {{ s.name }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12">
+      <div class="card">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Chambers</h5>
+            <button type="button" class="btn btn-sm btn-outline-primary" id="addChamberBtn">
+              + Add Chamber
+            </button>
+          </div>
+
+          <input type="hidden" name="chamber_count" id="chamberCount" value="0">
+          <div id="chambersWrap" class="mt-3"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 d-flex justify-content-end gap-2">
+      <a href="{% url 'doctor_list_ui' %}" class="btn btn-outline-secondary">Cancel</a>
+      <button class="btn btn-primary" type="submit">Update Doctor</button>
+    </div>
+  </div>
+</form>
+
+{{ chamber_payload|json_script:"chamber-data" }}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(function () {
+  if (typeof $.fn.select2 !== "undefined") {
+    $("#specSelect").select2({
+      tags: true,
+      width: "100%",
+      placeholder: "Select or type specializations..."
+    });
+  }
+
+  let initialData = [];
+  try {
+    const chamberDataEl = document.getElementById("chamber-data");
+    if (chamberDataEl) {
+      initialData = JSON.parse(chamberDataEl.textContent || "[]");
+    }
+  } catch (e) {
+    console.error("Failed to parse chamber JSON", e);
+    initialData = [];
+  }
+
+  const days = [
+    { v: 0, t: "Monday" },
+    { v: 1, t: "Tuesday" },
+    { v: 2, t: "Wednesday" },
+    { v: 3, t: "Thursday" },
+    { v: 4, t: "Friday" },
+    { v: 5, t: "Saturday" },
+    { v: 6, t: "Sunday" }
+  ];
+
+  function esc(val) {
+    return String(val || "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;");
+  }
+
+  function chamberTemplate(i, data = {}) {
+    return `
+      <div class="border rounded p-3 mb-3 chamber-block" data-idx="${i}">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h6 class="mb-0">Chamber #<span class="chamber-no">${i + 1}</span></h6>
+          <button type="button" class="btn btn-sm btn-outline-danger removeChamberBtn">Remove</button>
+        </div>
+
+        <div class="row g-2">
+          <div class="col-md-4">
+            <label class="form-label">Name *</label>
+            <input class="form-control chamber-name" required value="${esc(data.name)}">
+          </div>
+          <div class="col-md-8">
+            <label class="form-label">Address *</label>
+            <input class="form-control chamber-address" required value="${esc(data.address)}">
+          </div>
+
+          <div class="col-md-3">
+            <label class="form-label">State</label>
+            <input class="form-control chamber-state" value="${esc(data.state)}">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">City</label>
+            <input class="form-control chamber-city" value="${esc(data.city)}">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Zip</label>
+            <input class="form-control chamber-zip" value="${esc(data.zip)}">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Phone</label>
+            <input class="form-control chamber-phone" value="${esc(data.phone)}">
+          </div>
+
+          <div class="col-md-4">
+            <label class="form-label">Timezone</label>
+            <input class="form-control chamber-timezone" value="${esc(data.timezone || 'UTC')}">
+          </div>
+
+          <div class="col-md-2">
+            <label class="form-label">Active</label>
+            <select class="form-select chamber-is-active">
+              <option value="1" ${(data.is_active !== false) ? "selected" : ""}>Yes</option>
+              <option value="0" ${(data.is_active === false) ? "selected" : ""}>No</option>
+            </select>
+          </div>
+        </div>
+
+        <hr class="my-3">
+
+        <div class="d-flex justify-content-between align-items-center">
+          <strong>Schedules</strong>
+          <button type="button" class="btn btn-sm btn-outline-secondary addSchedBtn">+ Add Schedule</button>
+        </div>
+
+        <input type="hidden" class="schedCount" value="0">
+        <div class="schedWrap mt-2"></div>
+      </div>
+    `;
+  }
+
+  function schedRowTemplate(row = {}) {
+    const opts = days.map(d =>
+      `<option value="${d.v}" ${String(row.day) === String(d.v) ? "selected" : ""}>${d.t}</option>`
+    ).join("");
+
+    return `
+      <div class="row g-2 align-items-end sched-row border rounded p-2 mb-2">
+        <div class="col-md-4">
+          <label class="form-label">Day</label>
+          <select class="form-select sched-day">${opts}</select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Start</label>
+          <input class="form-control sched-start" value="${esc(row.start)}" placeholder="14:00">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">End</label>
+          <input class="form-control sched-end" value="${esc(row.end)}" placeholder="18:00">
+        </div>
+        <div class="col-md-2 d-grid">
+          <button type="button" class="btn btn-outline-danger removeSchedBtn">Remove</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function refreshChamberCount() {
+    $("#chamberCount").val($(".chamber-block").length);
+  }
+
+  function reindexAll() {
+    $(".chamber-block").each(function (i) {
+      const chamber = $(this);
+      chamber.attr("data-idx", i);
+      chamber.find(".chamber-no").text(i + 1);
+
+      chamber.find(".chamber-name").attr("name", `chamber_${i}_name`);
+      chamber.find(".chamber-address").attr("name", `chamber_${i}_address`);
+      chamber.find(".chamber-state").attr("name", `chamber_${i}_state`);
+      chamber.find(".chamber-city").attr("name", `chamber_${i}_city`);
+      chamber.find(".chamber-zip").attr("name", `chamber_${i}_zip`);
+      chamber.find(".chamber-phone").attr("name", `chamber_${i}_phone`);
+      chamber.find(".chamber-timezone").attr("name", `chamber_${i}_timezone`);
+      chamber.find(".chamber-is-active").attr("name", `chamber_${i}_is_active`);
+
+      const rows = chamber.find(".sched-row");
+      chamber.find(".schedCount").val(rows.length).attr("name", `chamber_${i}_sched_count`);
+
+      rows.each(function (j) {
+        const row = $(this);
+        row.find(".sched-day").attr("name", `chamber_${i}_sched_${j}_day`);
+        row.find(".sched-start").attr("name", `chamber_${i}_sched_${j}_start`);
+        row.find(".sched-end").attr("name", `chamber_${i}_sched_${j}_end`);
+      });
+    });
+
+    refreshChamberCount();
+  }
+
+  function addChamber(data = {}) {
+    $("#chambersWrap").append(chamberTemplate($(".chamber-block").length, data));
+    const chamber = $(".chamber-block").last();
+
+    (data.schedules || []).forEach(function (row) {
+      chamber.find(".schedWrap").append(schedRowTemplate(row));
+    });
+
+    reindexAll();
+  }
+
+  $("#addChamberBtn").on("click", function () {
+    addChamber({});
+  });
+
+  $(document).on("click", ".removeChamberBtn", function () {
+    $(this).closest(".chamber-block").remove();
+    reindexAll();
+  });
+
+  $(document).on("click", ".addSchedBtn", function () {
+    const chamber = $(this).closest(".chamber-block");
+    chamber.find(".schedWrap").append(schedRowTemplate({}));
+    reindexAll();
+  });
+
+  $(document).on("click", ".removeSchedBtn", function () {
+    $(this).closest(".sched-row").remove();
+    reindexAll();
+  });
+
+  $("#doctorForm").on("submit", function () {
+    reindexAll();
+  });
+
+  if (initialData.length > 0) {
+    initialData.forEach(function (ch) {
+      addChamber(ch);
+    });
+  } else {
+    addChamber({});
+  }
+});
+</script>
+{% endblock %}

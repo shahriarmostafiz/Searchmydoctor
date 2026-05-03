@@ -1,0 +1,457 @@
+{% extends "ui/admin/admin_base.html" %}
+{% block title %}Add Doctor{% endblock %}
+
+{% block admin_content %}
+
+<h3 class="mb-3">Add Doctor</h3>
+
+<form method="post" id="doctorForm">
+  {% csrf_token %}
+
+  <div class="row g-3">
+    <div class="col-lg-6">
+      <div class="card">
+        <div class="card-body">
+          <h5 class="mb-3">Doctor Info</h5>
+
+          <div class="mb-3">
+            <label class="form-label">Full Name *</label>
+            <input class="form-control" name="full_name" required>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Gender</label>
+            <select class="form-select" name="gender">
+              <option value="Male">Male</option>
+              <option value="Female">Female</option>
+              <option value="Other" selected>Other</option>
+            </select>
+          </div>
+
+          <div class="row g-2">
+            <div class="col-md-6">
+              <label class="form-label">Phone</label>
+              <input class="form-control" name="phone">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Email</label>
+              <input class="form-control" name="email" type="email">
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-6">
+      <div class="card">
+        <div class="card-body">
+          <h5 class="mb-3">Specializations</h5>
+
+          <label class="form-label">Select or type new (tags)</label>
+          <select id="specSelect" name="specialization_names[]" class="form-select" multiple>
+            {% for s in specializations %}
+              <option value="{{ s.name }}">{{ s.name }}</option>
+            {% endfor %}
+          </select>
+
+          <div class="form-text mt-2">
+            Type “Heart Surgery” / “Open Heart Surgery” etc. Press Enter to add new.
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12">
+      <div class="card">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Chambers</h5>
+            <button type="button" class="btn btn-sm btn-outline-primary" id="addChamberBtn">+ Add Chamber</button>
+          </div>
+
+          <input type="hidden" name="chamber_count" id="chamberCount" value="0">
+
+          <div id="chambersWrap" class="mt-3"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 d-flex justify-content-end gap-2">
+      <a href="{% url 'doctor_list_ui' %}" class="btn btn-outline-secondary">Cancel</a>
+      <button class="btn btn-primary">Save Doctor</button>
+    </div>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(function(){
+
+  $("#specSelect").select2({
+    tags: true,
+    width: "100%",
+    placeholder: "Select or type specializations..."
+  });
+
+  const days = [
+    {v:0, t:"Monday"},
+    {v:1, t:"Tuesday"},
+    {v:2, t:"Wednesday"},
+    {v:3, t:"Thursday"},
+    {v:4, t:"Friday"},
+    {v:5, t:"Saturday"},
+    {v:6, t:"Sunday"},
+  ];
+
+  let bdDivisions = [];
+  const divisionDistrictCache = {};
+
+  async function loadDivisions() {
+    if (bdDivisions.length) return bdDivisions;
+
+    try {
+      // const res = await fetch("https://bdapis.com/api/v1.2/divisions");
+      const res = await fetch("/api/bd/divisions/");
+      const json = await res.json();
+
+      if (json && json.status && json.status.code === 200 && Array.isArray(json.data)) {
+        bdDivisions = json.data.map(item => ({
+          value: (item.division || "").trim(),
+          text: (item.division || "").trim()
+        }));
+      }
+    } catch (err) {
+      console.error("Failed to load divisions:", err);
+    }
+    console.log("bdDivisions",bdDivisions)
+    return bdDivisions;
+  }
+
+  async function loadDistrictsByDivision1(division) {
+    const key = (division || "").trim().toLowerCase();
+    if (!key) return [];
+
+    if (divisionDistrictCache[key]) {
+      return divisionDistrictCache[key];
+    }
+
+    try {
+     // const res = await fetch(`https://bdapis.com/api/v1.2/division/${encodeURIComponent(key)}`);
+        const res = await fetch(`/api/bd/division/${encodeURIComponent(key)}/`);
+        const json = await res.json();
+
+        //if (json && json.status && json.status.code === 200 && Array.isArray(json.data)) {
+        if (json) {
+            divisionDistrictCache[key] = json.data;
+            console.log("district",json.data)
+            return json.data;
+        }
+        } catch (err) {
+        console.error("Failed to load districts:", err);
+        }
+
+        divisionDistrictCache[key] = [];
+        return [];
+  }
+  async function loadDistrictsByDivision(division) {
+  const key = (division || "").trim().toLowerCase();
+  if (!key) return [];
+
+  if (divisionDistrictCache[key]) {
+    return divisionDistrictCache[key];
+  }
+
+  try {
+    const res = await fetch(`/api/bd/division/${encodeURIComponent(key)}/`);
+    const json = await res.json();
+
+    if (json && json.data) {
+      divisionDistrictCache[key] = json.data;
+      return json.data;
+    }
+
+  } catch (err) {
+    console.error("Failed to load districts:", err);
+  }
+
+  divisionDistrictCache[key] = [];
+  return [];
+}
+
+  function buildDivisionOptions(selected = "") {
+    let html = `<option value="">Select Division</option>`;
+    bdDivisions.forEach(d => {
+      const isSelected = selected === d.value ? "selected" : "";
+      html += `<option value="${d.value}" ${isSelected}>${d.text}</option>`;
+    });
+    return html;
+  }
+
+  function buildDistrictOption1(districts, selected = "") {
+    let html = `<option value="">Select Zilla</option>`;
+    districts.forEach(d => {
+      const districtName = (d.district || "").trim();
+      const isSelected = selected === districtName ? "selected" : "";
+      html += `<option value="${districtName}" ${isSelected}>${districtName}</option>`;
+    });
+    return html;
+  }
+  function buildDistrictOptions(districts, selected = "") {
+    let html = `<option value="">Select Zilla</option>`;
+
+    districts.forEach(d => {
+      const name = (d.name || "").trim();
+      const isSelected = selected === name ? "selected" : "";
+      html += `<option value="${name}" ${isSelected}>${name}</option>`;
+    });
+
+    return html;
+  }
+
+  function buildUpazilaOptions1(upazilas, selected = "") {
+    let html = `<option value="">Select Upazila / Thana</option>`;
+    (upazilas || []).forEach(u => {
+      // u = u["areas"][0]
+      const isSelected = selected === u ? "selected" : "";
+      html += `<option value="${u}" ${isSelected}>${u}</option>`;
+    });
+    return html;
+  }
+  function buildUpazilaOptions(items, selected = "") {
+    let html = `<option value="">Select Upazila / Thana</option>`;
+
+    (items || []).forEach(u => {
+      const name = (u.name || "").trim();
+      const isSelected = selected === name ? "selected" : "";
+      html += `<option value="${name}" ${isSelected}>${name}</option>`;
+    });
+
+    return html;
+  }
+
+  function chamberTemplate(i){
+    return `
+      <div class="border rounded p-3 mb-3 chamber-block" data-idx="${i}">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h6 class="mb-0">Chamber #${i+1}</h6>
+          <button type="button" class="btn btn-sm btn-outline-danger removeChamberBtn">Remove</button>
+        </div>
+
+        <div class="row g-2">
+          <div class="col-md-4">
+            <label class="form-label">Name *</label>
+            <input class="form-control" name="chamber_${i}_name" required>
+          </div>
+          <div class="col-md-8">
+            <label class="form-label">Address *</label>
+            <input class="form-control" name="chamber_${i}_address" required>
+          </div>
+
+          <div class="col-md-4">
+            <label class="form-label">State / Division</label>
+            <select class="form-select chamber-division" name="chamber_${i}_state">
+              <option value="">Loading divisions...</option>
+            </select>
+          </div>
+
+          <div class="col-md-4">
+            <label class="form-label">Zilla / District</label>
+            <select class="form-select chamber-district" name="chamber_${i}_city" disabled>
+              <option value="">Select Zilla</option>
+            </select>
+          </div>
+
+          <div class="col-md-4">
+            <label class="form-label">Upazila / Thana</label>
+            <select class="form-select chamber-upazila" name="chamber_${i}_upazila" disabled>
+              <option value="">Select Upazila / Thana</option>
+            </select>
+          </div>
+
+          <div class="col-md-3">
+            <label class="form-label">Zip</label>
+            <input class="form-control" name="chamber_${i}_zip">
+          </div>
+
+          <div class="col-md-3">
+            <label class="form-label">Phone</label>
+            <input class="form-control" name="chamber_${i}_phone">
+          </div>
+
+          <div class="col-md-3">
+            <label class="form-label">Timezone</label>
+            <input class="form-control" name="chamber_${i}_timezone" value="Asia/Dhaka">
+          </div>
+        </div>
+
+        <hr class="my-3">
+
+        <div class="d-flex justify-content-between align-items-center">
+          <strong>Schedules</strong>
+          <button type="button" class="btn btn-sm btn-outline-secondary addSchedBtn">+ Add Schedule</button>
+        </div>
+
+        <input type="hidden" name="chamber_${i}_sched_count" class="schedCount" value="0">
+        <div class="schedWrap mt-2"></div>
+      </div>
+    `;
+  }
+
+  function schedRowTemplate(chIdx, sIdx){
+    const opts = days.map(d => `<option value="${d.v}">${d.t}</option>`).join("");
+    return `
+      <div class="row g-2 align-items-end sched-row border rounded p-2 mb-2" data-sidx="${sIdx}">
+        <div class="col-md-4">
+          <label class="form-label">Day</label>
+          <select class="form-select" name="chamber_${chIdx}_sched_${sIdx}_day">
+            ${opts}
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Start</label>
+          <input class="form-control" name="chamber_${chIdx}_sched_${sIdx}_start" placeholder="14:00">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">End</label>
+          <input class="form-control" name="chamber_${chIdx}_sched_${sIdx}_end" placeholder="18:00">
+        </div>
+        <div class="col-md-2 d-grid">
+          <button type="button" class="btn btn-outline-danger removeSchedBtn">Remove</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function refreshChamberCount(){
+    const count = $(".chamber-block").length;
+    $("#chamberCount").val(count);
+  }
+
+  async function populateDivisionDropdown($block, selectedDivision = "") {
+    await loadDivisions();
+    const $division = $block.find(".chamber-division");
+    $division.html(buildDivisionOptions(selectedDivision));
+  }
+
+  async function handleDivisionChange1($block, selectedDistrict = "", selectedUpazila = "") {
+    const division = $block.find(".chamber-division").val();
+    const $district = $block.find(".chamber-district");
+    const $upazila = $block.find(".chamber-upazila");
+
+    $district.html(`<option value="">Loading Zilla...</option>`).prop("disabled", true);
+    $upazila.html(`<option value="">Select Upazila / Thana</option>`).prop("disabled", true);
+
+    if (!division) {
+      $district.html(`<option value="">Select Zilla</option>`).prop("disabled", true);
+      $upazila.html(`<option value="">Select Upazila / Thana</option>`).prop("disabled", true);
+      return;
+    }
+
+    const districts = await loadDistrictsByDivision(division);
+    $district.html(buildDistrictOptions(districts, selectedDistrict)).prop("disabled", false);
+
+    if (selectedDistrict) {
+      const matched = districts.find(d => (d.district || "").trim() === selectedDistrict);
+      const upazilas = matched ? (matched.upazilla || []) : [];
+      $upazila.html(buildUpazilaOptions(upazilas, selectedUpazila)).prop("disabled", false);
+    }
+  }
+  async function handleDivisionChange($block, selectedDistrict = "", selectedUpazila = "") {
+  const division = $block.find(".chamber-division").val();
+  const $district = $block.find(".chamber-district");
+  const $upazila = $block.find(".chamber-upazila");
+
+  $district.html(`<option value="">Loading Zilla...</option>`).prop("disabled", true);
+  $upazila.html(`<option value="">Select Upazila / Thana</option>`).prop("disabled", true);
+
+  if (!division) return;
+
+  const districts = await loadDistrictsByDivision(division);
+
+  $district.html(buildDistrictOptions(districts, selectedDistrict))
+           .prop("disabled", false);
+}
+
+  function handleDistrictChange1($block, selectedUpazila = "") {
+    const division = $block.find(".chamber-division").val();
+    const district = $block.find(".chamber-district").val();
+    const $upazila = $block.find(".chamber-upazila");
+
+    const key = (division || "").trim().toLowerCase();
+    const districts = divisionDistrictCache[key] || [];
+    const matched = districts.find(d => (d.district || "").trim() === district);
+    const upazilas = matched ? (matched.upazilla || []) : [];
+
+    $upazila.html(buildUpazilaOptions(upazilas, selectedUpazila)).prop("disabled", !district);
+  }
+  async function handleDistrictChange($block, selectedUpazila = "") {
+    const district = $block.find(".chamber-district").val();
+    const $upazila = $block.find(".chamber-upazila");
+
+    $upazila.html(`<option value="">Loading...</option>`).prop("disabled", true);
+
+    if (!district) return;
+
+    try {
+      const res = await fetch(`/api/bd/district/${encodeURIComponent(district)}/`);
+      const json = await res.json();
+
+      if (json && json.upazilas) {
+        $upazila.html(buildUpazilaOptions(json.upazilas, selectedUpazila))
+                .prop("disabled", false);
+      } else {
+        $upazila.html(`<option value="">No data</option>`);
+      }
+
+    } catch (err) {
+      console.error(err);
+      $upazila.html(`<option value="">Error</option>`);
+    }
+  }
+
+  $("#addChamberBtn").on("click", async function(){
+    const i = $(".chamber-block").length;
+    $("#chambersWrap").append(chamberTemplate(i));
+
+    const $newBlock = $("#chambersWrap").find(".chamber-block").last();
+    await populateDivisionDropdown($newBlock);
+
+    refreshChamberCount();
+  });
+
+  $(document).on("click", ".removeChamberBtn", function(){
+    $(this).closest(".chamber-block").remove();
+    refreshChamberCount();
+  });
+
+  $(document).on("change", ".chamber-division", async function(){
+    const $block = $(this).closest(".chamber-block");
+    await handleDivisionChange($block);
+  });
+
+  $(document).on("change", ".chamber-district", function(){
+    const $block = $(this).closest(".chamber-block");
+    handleDistrictChange($block);
+  });
+
+  $(document).on("click", ".addSchedBtn", function(){
+    const chamber = $(this).closest(".chamber-block");
+    const chIdx = chamber.data("idx");
+
+    const countInput = chamber.find(".schedCount");
+    let sIdx = parseInt(countInput.val() || "0");
+    chamber.find(".schedWrap").append(schedRowTemplate(chIdx, sIdx));
+    countInput.val(sIdx + 1);
+  });
+
+  $(document).on("click", ".removeSchedBtn", function(){
+    $(this).closest(".sched-row").remove();
+  });
+
+  $("#addChamberBtn").click();
+});
+</script>
+{% endblock %}

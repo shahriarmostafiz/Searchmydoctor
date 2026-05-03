@@ -1,0 +1,3 @@
+*.sqlite3
+/doctor_search/__pycache__
+*.pyc

@@ -1,0 +1,50 @@
+
+
+
+{% extends "ui/admin/admin_base.html" %}
+{% block admin_content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h3 class="mb-0">Doctors</h3>
+  <a class="btn btn-primary" href="{% url 'doctor_create_ui' %}">Add Doctor</a>
+</div>
+<div class="card">
+  <div class="card-body p-0">
+    <table class="table table-hover mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>#</th>
+          <th>Name</th>
+          <th>Specializations</th>
+          <th>Chambers</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for d in doctors %}
+        <tr>
+          <td>{{ forloop.counter }}</td>
+          <td>{{ d.full_name }}</td>
+          <td>
+            {% for s in d.specializations.all %}
+              <span class="badge bg-secondary me-1">{{ s.name }}</span>
+            {% empty %}
+              <span class="text-muted">None</span>
+            {% endfor %}
+          </td>
+          <td>
+            {% for c in d.chambers.all %}
+              <div class="small">
+                <strong>{{ c.name }}</strong> — {{ c.city }} {{ c.state }}
+              </div>
+            {% empty %}
+              <span class="text-muted">None</span>
+            {% endfor %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="4" class="text-center text-muted py-4">No doctors yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

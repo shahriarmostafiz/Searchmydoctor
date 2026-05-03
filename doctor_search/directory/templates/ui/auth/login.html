@@ -1,0 +1,50 @@
+{% extends "ui/base.html" %}
+{% block title %}Login{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-6 col-lg-4">
+    <div class="card">
+      <div class="card-body">
+        <h5 class="mb-3 text-center">Superuser Login</h5>
+
+        <form method="post" id="loginForm">
+          {% csrf_token %}
+
+          <div class="mb-3">
+            <label class="form-label">Username</label>
+            <input class="form-control" name="username" id="username" required>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Password</label>
+            <input class="form-control" type="password" name="password" id="password" required>
+          </div>
+
+          <button class="btn btn-primary w-100 mb-2">
+            <i class="bi bi-box-arrow-in-right me-1"></i>Login
+          </button>
+
+          <!-- DEMO BUTTON -->
+          <button type="button" id="demoLoginBtn" class="btn btn-outline-success w-100">
+            <i class="bi bi-play-circle me-1"></i>Login as Demo Admin
+          </button>
+        </form>
+
+        <div class="text-muted small mt-3 text-center">
+          Demo user is for testing only.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.getElementById("demoLoginBtn").addEventListener("click", function () {
+  document.getElementById("username").value = "admin";
+  document.getElementById("password").value = "admin123456";
+  document.getElementById("loginForm").submit();
+});
+</script>
+
+{% endblock %}

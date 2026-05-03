@@ -1,0 +1,56 @@
+{% extends "ui/admin/admin_base.html" %}
+
+{% block admin_content %}
+<div class="card">
+  <div class="card-body">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h5 class="mb-0">Doctors</h5>
+      <a href="{% url 'doctor_create_ui' %}" class="btn btn-primary btn-sm">Add Doctor</a>
+    </div>
+
+    <div class="table-responsive">
+      <table class="table table-hover align-middle">
+        <thead class="table-light">
+          <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Specializations</th>
+            <th>Chambers</th>
+            <th class="text-end">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for d in doctors %}
+          <tr>
+            <td>{{ d.id }}</td>
+            <td>{{ d.full_name }}</td>
+            <td>
+              {% for s in d.specializations.all %}
+                <span class="badge bg-secondary me-1">{{ s.name }}</span>
+              {% empty %}
+                <span class="text-muted">None</span>
+              {% endfor %}
+            </td>
+            <td>
+              {% for c in d.chambers.all %}
+                <div class="small">{{ c.name }}{% if c.city or c.state %} — {{ c.city }} {{ c.state }}{% endif %}</div>
+              {% empty %}
+                <span class="text-muted">None</span>
+              {% endfor %}
+            </td>
+            <td class="text-end">
+              <a href="{% url 'doctor_edit_ui' d.id %}" class="btn btn-sm btn-outline-primary">
+                <i class="bi bi-pencil"></i></a>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="5" class="text-center text-muted py-4">No doctors found.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

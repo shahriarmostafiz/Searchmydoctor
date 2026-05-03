@@ -1,0 +1,230 @@
+{% extends "ui/admin/admin_base.html" %}
+{% block title %}Add Doctor{% endblock %}
+
+{% block admin_content %}
+
+<h3 class="mb-3">Add Doctor</h3>
+
+<form method="post" id="doctorForm">
+  {% csrf_token %}
+
+  <div class="row g-3">
+    <div class="col-lg-6">
+      <div class="card">
+        <div class="card-body">
+          <h5 class="mb-3">Doctor Info</h5>
+
+          <div class="mb-3">
+            <label class="form-label">Full Name *</label>
+            <input class="form-control" name="full_name" required>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Gender</label>
+            <select class="form-select" name="gender">
+              <option value="Male">Male</option>
+              <option value="Female">Female</option>
+              <option value="Other" selected>Other</option>
+            </select>
+          </div>
+
+          <div class="row g-2">
+            <div class="col-md-6">
+              <label class="form-label">Phone</label>
+              <input class="form-control" name="phone">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Email</label>
+              <input class="form-control" name="email" type="email">
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-6">
+      <div class="card">
+        <div class="card-body">
+          <h5 class="mb-3">Specializations</h5>
+
+          <label class="form-label">Select or type new (tags)</label>
+          <select id="specSelect" name="specialization_names[]" class="form-select" multiple>
+            {% for s in specializations %}
+              <option value="{{ s.name }}">{{ s.name }}</option>
+            {% endfor %}
+          </select>
+
+          <div class="form-text mt-2">
+            Type “Heart Surgery” / “Open Heart Surgery” etc. Press Enter to add new.
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12">
+      <div class="card">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Chambers</h5>
+            <button type="button" class="btn btn-sm btn-outline-primary" id="addChamberBtn">+ Add Chamber</button>
+          </div>
+
+          <input type="hidden" name="chamber_count" id="chamberCount" value="0">
+
+          <div id="chambersWrap" class="mt-3"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 d-flex justify-content-end gap-2">
+      <a href="{% url 'doctor_list_ui' %}" class="btn btn-outline-secondary">Cancel</a>
+      <button class="btn btn-primary">Save Doctor</button>
+    </div>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(function(){
+
+  // Select2 tags
+  $("#specSelect").select2({
+    tags: true,
+    width: "100%",
+    placeholder: "Select or type specializations..."
+  });
+
+  const days = [
+    {v:0, t:"Monday"},
+    {v:1, t:"Tuesday"},
+    {v:2, t:"Wednesday"},
+    {v:3, t:"Thursday"},
+    {v:4, t:"Friday"},
+    {v:5, t:"Saturday"},
+    {v:6, t:"Sunday"},
+  ];
+
+  function chamberTemplate(i){
+    return `
+      <div class="border rounded p-3 mb-3 chamber-block" data-idx="${i}">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h6 class="mb-0">Chamber #${i+1}</h6>
+          <button type="button" class="btn btn-sm btn-outline-danger removeChamberBtn">Remove</button>
+        </div>
+
+        <div class="row g-2">
+          <div class="col-md-4">
+            <label class="form-label">Name *</label>
+            <input class="form-control" name="chamber_${i}_name" required>
+          </div>
+          <div class="col-md-8">
+            <label class="form-label">Address *</label>
+            <input class="form-control" name="chamber_${i}_address" required>
+          </div>
+
+          <div class="col-md-3">
+            <label class="form-label">State</label>
+            <input class="form-control" name="chamber_${i}_state">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">City</label>
+            <input class="form-control" name="chamber_${i}_city">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Zip</label>
+            <input class="form-control" name="chamber_${i}_zip">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Phone</label>
+            <input class="form-control" name="chamber_${i}_phone">
+          </div>
+
+          <div class="col-md-4">
+            <label class="form-label">Timezone</label>
+            <input class="form-control" name="chamber_${i}_timezone" value="UTC">
+          </div>
+        </div>
+
+        <hr class="my-3">
+
+        <div class="d-flex justify-content-between align-items-center">
+          <strong>Schedules</strong>
+          <button type="button" class="btn btn-sm btn-outline-secondary addSchedBtn">+ Add Schedule</button>
+        </div>
+
+        <input type="hidden" name="chamber_${i}_sched_count" class="schedCount" value="0">
+
+        <div class="schedWrap mt-2"></div>
+      </div>
+    `;
+  }
+
+  function schedRowTemplate(chIdx, sIdx){
+    const opts = days.map(d => `<option value="${d.v}">${d.t}</option>`).join("");
+    return `
+      <div class="row g-2 align-items-end sched-row border rounded p-2 mb-2" data-sidx="${sIdx}">
+        <div class="col-md-4">
+          <label class="form-label">Day</label>
+          <select class="form-select" name="chamber_${chIdx}_sched_${sIdx}_day">
+            ${opts}
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Start</label>
+          <input class="form-control" name="chamber_${chIdx}_sched_${sIdx}_start" placeholder="14:00">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">End</label>
+          <input class="form-control" name="chamber_${chIdx}_sched_${sIdx}_end" placeholder="18:00">
+        </div>
+        <div class="col-md-2 d-grid">
+          <button type="button" class="btn btn-outline-danger removeSchedBtn">Remove</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function refreshChamberCount(){
+    const count = $(".chamber-block").length;
+    $("#chamberCount").val(count);
+  }
+
+  // Add chamber
+  $("#addChamberBtn").on("click", function(){
+    const i = $(".chamber-block").length;
+    $("#chambersWrap").append(chamberTemplate(i));
+    refreshChamberCount();
+  });
+
+  // Remove chamber
+  $(document).on("click", ".removeChamberBtn", function(){
+    $(this).closest(".chamber-block").remove();
+    // NOTE: For simplicity, we keep indexes as-is; server loops chamber_count and missing ones skip.
+    refreshChamberCount();
+  });
+
+  // Add schedule row
+  $(document).on("click", ".addSchedBtn", function(){
+    const chamber = $(this).closest(".chamber-block");
+    const chIdx = chamber.data("idx");
+
+    const countInput = chamber.find(".schedCount");
+    let sIdx = parseInt(countInput.val() || "0");
+    chamber.find(".schedWrap").append(schedRowTemplate(chIdx, sIdx));
+    countInput.val(sIdx + 1);
+  });
+
+  // Remove schedule row
+  $(document).on("click", ".removeSchedBtn", function(){
+    $(this).closest(".sched-row").remove();
+  });
+
+  // Start with one chamber by default
+  $("#addChamberBtn").click();
+
+});
+</script>
+{% endblock %}

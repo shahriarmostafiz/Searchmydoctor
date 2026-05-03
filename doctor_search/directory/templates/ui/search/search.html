@@ -1,0 +1,252 @@
+{% extends "ui/base.html" %}
+{% block title %}Search Doctors{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-body">
+        <h5 class="mb-3">Search Doctors</h5>
+
+        <form id="searchForm" class="row g-2">
+          <div class="col-md-6">
+            <input type="text" class="form-control" id="q" name="q"
+                   placeholder="Type: heart, cardio, surgery, hospital, doctor name...">
+          </div>
+
+          <div class="col-md-2">
+            <input type="text" class="form-control" id="state" name="state" placeholder="State">
+          </div>
+
+          <div class="col-md-2">
+            <input type="text" class="form-control" id="city" name="city" placeholder="City">
+          </div>
+
+          <div class="col-md-2 d-grid">
+            <button type="submit" class="btn btn-primary">
+              Search
+            </button>
+          </div>
+
+          <div class="col-md-3">
+            <select class="form-select" id="day" name="day">
+              <option value="">Day (optional)</option>
+              <option value="0">Monday</option>
+              <option value="1">Tuesday</option>
+              <option value="2">Wednesday</option>
+              <option value="3">Thursday</option>
+              <option value="4">Friday</option>
+              <option value="5">Saturday</option>
+              <option value="6">Sunday</option>
+            </select>
+          </div>
+
+          <div class="col-md-3">
+            <input type="text" class="form-control" id="at" name="at"
+                   placeholder="Time (optional) e.g. 17:00">
+          </div>
+
+          <div class="col-md-2">
+            <select class="form-select" id="limit" name="limit">
+              <option value="10">Limit 10</option>
+              <option value="25" selected>Limit 25</option>
+              <option value="50">Limit 50</option>
+            </select>
+          </div>
+
+          <div class="col-md-4 d-flex align-items-center">
+            <div id="statusText" class="small text-muted"></div>
+          </div>
+        </form>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Results (EMPTY on load) -->
+  <div class="col-12">
+    <div class="card">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h6 class="mb-0">Results</h6>
+          <button type="button" class="btn btn-sm btn-outline-secondary d-none" id="clearBtn">Clear</button>
+        </div>
+
+        <!-- IMPORTANT: We show nothing initially -->
+        <div id="emptyHint" class="text-muted">
+          No results yet. Type something and press <strong>Search</strong>.
+        </div>
+
+        <div id="loading" class="d-none">
+          <div class="d-flex align-items-center gap-2">
+            <div class="spinner-border spinner-border-sm" role="status"></div>
+            <span class="small">Searching...</span>
+          </div>
+        </div>
+
+        <div id="resultsWrap" class="row g-3 mt-1"></div>
+
+        <div id="noResults" class="alert alert-warning d-none mt-3">
+          No doctors found for your search.
+        </div>
+
+        <div id="errorBox" class="alert alert-danger d-none mt-3"></div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(function(){
+
+  // Ensure nothing is displayed on initial load:
+  $("#resultsWrap").empty();
+  $("#noResults").addClass("d-none");
+  $("#errorBox").addClass("d-none");
+  $("#loading").addClass("d-none");
+  $("#clearBtn").addClass("d-none");
+
+  function escapeHtml(str){
+    return String(str ?? "")
+      .replaceAll("&","&amp;")
+      .replaceAll("<","&lt;")
+      .replaceAll(">","&gt;")
+      .replaceAll('"',"&quot;")
+      .replaceAll("'","&#039;");
+  }
+
+  function renderDoctorCard(d){
+    const specs = (d.specializations || []).map(s => `<span class="badge bg-secondary me-1 mb-1">${escapeHtml(s)}</span>`).join("");
+    const chambers = (d.chambers || []).map(c => {
+      const hosp = c.hospital ? ` · <span class="text-muted">${escapeHtml(c.hospital)}</span>` : "";
+      return `<div class="small">
+                <strong>${escapeHtml(c.name)}</strong>
+                <div class="text-muted">${escapeHtml(c.city || "")} ${escapeHtml(c.state || "")}${hosp}</div>
+              </div>`;
+    }).join("");
+
+    return `
+      <div class="col-md-6 col-xl-4">
+        <div class="border rounded p-3 h-100">
+          <div class="d-flex justify-content-between align-items-start">
+            <div>
+              <h6 class="mb-1">${escapeHtml(d.name)}</h6>
+              <div class="small text-muted">ID: ${escapeHtml(d.id)}</div>
+            </div>
+          </div>
+
+          <hr class="my-2">
+
+          <div class="mb-2">
+            <div class="small text-muted mb-1">Specializations</div>
+            ${specs || '<span class="text-muted small">None</span>'}
+          </div>
+
+          <div>
+            <div class="small text-muted mb-1">Chambers</div>
+            ${chambers || '<span class="text-muted small">None</span>'}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function setLoading(isLoading){
+    if(isLoading){
+      $("#loading").removeClass("d-none");
+      $("#statusText").text("Searching...");
+    } else {
+      $("#loading").addClass("d-none");
+      $("#statusText").text("");
+    }
+  }
+
+  function doSearch(){
+    const q = $("#q").val().trim();
+    const state = $("#state").val().trim();
+    const city = $("#city").val().trim();
+    const day = $("#day").val();
+    const at = $("#at").val().trim();
+    const limit = $("#limit").val();
+
+    // If user didn't type anything, do NOT fetch doctors, keep empty.
+    if(!q){
+      $("#resultsWrap").empty();
+      $("#emptyHint").removeClass("d-none");
+      $("#noResults").addClass("d-none");
+      $("#errorBox").addClass("d-none");
+      $("#clearBtn").addClass("d-none");
+      return;
+    }
+
+    $("#emptyHint").addClass("d-none");
+    $("#noResults").addClass("d-none");
+    $("#errorBox").addClass("d-none");
+    $("#resultsWrap").empty();
+    $("#clearBtn").removeClass("d-none");
+
+    setLoading(true);
+
+    $.ajax({
+      url: "/search/doctors",
+      method: "GET",
+      dataType: "json",
+      data: {
+        q: q,
+        state: state || undefined,
+        city: city || undefined,
+        day: day || undefined,
+        at: at || undefined,
+        limit: limit || 25
+      },
+      success: function(res){
+        setLoading(false);
+
+        if(!res || res.length === 0){
+          $("#noResults").removeClass("d-none");
+          return;
+        }
+
+        let html = "";
+        for(const d of res){
+          html += renderDoctorCard(d);
+        }
+        $("#resultsWrap").html(html);
+        $("#statusText").text(`Found ${res.length} doctor(s).`);
+      },
+      error: function(xhr){
+        setLoading(false);
+        $("#errorBox").removeClass("d-none").text(
+          "Search failed. Server returned: " + (xhr.responseText || xhr.statusText)
+        );
+      }
+    });
+  }
+
+  $("#searchForm").on("submit", function(e){
+    e.preventDefault();
+    doSearch();
+  });
+
+  $("#clearBtn").on("click", function(){
+    $("#q").val("");
+    $("#state").val("");
+    $("#city").val("");
+    $("#day").val("");
+    $("#at").val("");
+    $("#limit").val("25");
+
+    $("#resultsWrap").empty();
+    $("#noResults").addClass("d-none");
+    $("#errorBox").addClass("d-none");
+    $("#loading").addClass("d-none");
+    $("#emptyHint").removeClass("d-none");
+    $("#statusText").text("");
+    $("#clearBtn").addClass("d-none");
+  });
+
+});
+</script>
+{% endblock %}
