@@ -5,7 +5,7 @@
 
 <h3 class="mb-3">Add Doctor</h3>
 
-<form method="post" id="doctorForm">
+<form method="post" enctype="multipart/form-data" id="doctorForm">
   {% csrf_token %}
 
   <div class="row g-3">
@@ -39,6 +39,15 @@
             </div>
           </div>
 
+          <div class="mb-3 mt-3">
+            <label class="form-label">Photo</label>
+            <input class="form-control" type="file" name="photo" accept="image/*" id="photoInput">
+            <div class="mt-2 d-none" id="photoPreviewWrap">
+              <img id="photoPreview" src="" alt="Preview" class="rounded"
+                   style="max-height:120px; max-width:120px; object-fit:cover;">
+            </div>
+          </div>
+
         </div>
       </div>
     </div>
@@ -48,7 +57,7 @@
         <div class="card-body">
           <h5 class="mb-3">Specializations</h5>
 
-          <label class="form-label">Select or type new (tags)</label>
+          <label class="form-label">Select or type new specializations</label>
           <select id="specSelect" name="specialization_names[]" class="form-select" multiple>
             {% for s in specializations %}
               <option value="{{ s.name }}">{{ s.name }}</option>
@@ -89,6 +98,20 @@
 {% block extra_js %}
 <script>
 $(function(){
+
+  $("#photoInput").on("change", function() {
+    const file = this.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        $("#photoPreview").attr("src", e.target.result);
+        $("#photoPreviewWrap").removeClass("d-none");
+      };
+      reader.readAsDataURL(file);
+    } else {
+      $("#photoPreviewWrap").addClass("d-none");
+    }
+  });
 
   $("#specSelect").select2({
     tags: true,

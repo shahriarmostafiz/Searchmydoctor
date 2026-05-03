@@ -1,10 +1,35 @@
-from django.shortcuts import render, redirect,get_object_or_404
+import os
+import uuid
+
+from django.conf import settings
+from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.contrib.auth.decorators import user_passes_test
 from django.db import transaction
 
-
 from .models import Doctor, Specialization, Chamber, ChamberSchedule
+
+
+def _save_photo(file) -> str:
+    """Save an uploaded image to static/uploads/doctors/ and return the URL path."""
+    ext = os.path.splitext(file.name)[1].lower() or '.jpg'
+    filename = uuid.uuid4().hex + ext
+    dest_dir = os.path.join(settings.UPLOAD_ROOT, 'doctors')
+    os.makedirs(dest_dir, exist_ok=True)
+    with open(os.path.join(dest_dir, filename), 'wb+') as f:
+        for chunk in file.chunks():
+            f.write(chunk)
+    return settings.UPLOAD_URL + 'doctors/' + filename
+
+
+def _delete_photo(url_path: str):
+    """Remove an uploaded photo from disk given its URL path."""
+    if not url_path:
+        return
+    rel = url_path.replace(settings.UPLOAD_URL, '', 1)
+    full = os.path.join(settings.UPLOAD_ROOT, rel)
+    if os.path.isfile(full):
+        os.remove(full)
 
 def superuser_required(view_func):
     return user_passes_test(lambda u: u.is_authenticated and u.is_superuser, login_url="/login/")(view_func)
@@ -39,11 +64,13 @@ def doctor_create_ui(request):
 
         try:
             with transaction.atomic():
+                photo_file = request.FILES.get('photo')
                 doctor = Doctor.objects.create(
                     full_name=full_name,
                     gender=gender,
                     phone=phone or None,
                     email=email or None,
+                    photo=_save_photo(photo_file) if photo_file else None,
                 )
 
                 spec_names = request.POST.getlist("specialization_names[]")
@@ -214,6 +241,15 @@ def doctor_edit_ui(request, doctor_id):
         doctor.gender = gender
         doctor.phone = phone or None
         doctor.email = email or None
+
+        photo_file = request.FILES.get('photo')
+        if photo_file:
+            _delete_photo(doctor.photo)
+            doctor.photo = _save_photo(photo_file)
+        elif request.POST.get('remove_photo') == '1':
+            _delete_photo(doctor.photo)
+            doctor.photo = None
+
         doctor.save()
 
         spec_names = request.POST.getlist("specialization_names[]")

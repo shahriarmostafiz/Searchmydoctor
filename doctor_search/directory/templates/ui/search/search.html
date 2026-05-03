@@ -127,12 +127,21 @@ $(function(){
               </div>`;
     }).join("");
 
+    const photoHtml = d.photo
+      ? `<img src="${escapeHtml(d.photo)}" alt="${escapeHtml(d.name)}"
+              class="rounded-circle" style="width:56px;height:56px;object-fit:cover;flex-shrink:0;">`
+      : `<div class="rounded-circle bg-secondary d-flex align-items-center justify-content-center text-white"
+              style="width:56px;height:56px;flex-shrink:0;font-size:1.4rem;">
+           <i class="bi bi-person"></i>
+         </div>`;
+
     return `
       <div class="col-md-6 col-xl-4">
         <div class="border rounded p-3 h-100">
-          <div class="d-flex justify-content-between align-items-start">
+          <div class="d-flex align-items-center gap-3 mb-2">
+            ${photoHtml}
             <div>
-              <h6 class="mb-1">${escapeHtml(d.name)}</h6>
+              <h6 class="mb-0">${escapeHtml(d.name)}</h6>
               <div class="small text-muted">ID: ${escapeHtml(d.id)}</div>
             </div>
           </div>

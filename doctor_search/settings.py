@@ -158,5 +158,10 @@ USE_TZ = True
 STATIC_URL = '/static/'
 STATIC_ROOT = '/home/picosl/public_html/static'
 
-MEDIA_URL = '/media/'
-MEDIA_ROOT = '/home/picosl/public_html/media'
+# In dev, also serve from project-level static/ directory (where uploads land)
+if DEBUG:
+    STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
+
+# Doctor photo uploads — stored under static/uploads/, served as /static/uploads/
+UPLOAD_URL = '/static/uploads/'
+UPLOAD_ROOT = os.path.join(BASE_DIR, 'static', 'uploads') if DEBUG else '/home/picosl/public_html/static/uploads'

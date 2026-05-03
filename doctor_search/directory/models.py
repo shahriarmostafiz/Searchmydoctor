@@ -62,6 +62,8 @@ class Doctor(TimeStampedModel):
     phone = models.CharField(max_length=20, blank=True, null=True)
     email = models.CharField(max_length=150, blank=True, null=True)
 
+    photo = models.CharField(max_length=255, blank=True, null=True)
+
     specializations = models.ManyToManyField(Specialization, related_name="doctors", blank=True)
 
     class Meta:

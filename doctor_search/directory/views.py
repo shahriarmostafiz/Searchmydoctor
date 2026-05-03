@@ -70,6 +70,7 @@ def search_doctors(request):
         data.append({
             "id": d.id,
             "name": d.full_name,
+            "photo": d.photo.url if d.photo else None,
             "specializations": [s.name for s in d.specializations.all()],
             "chambers": [
                 {"name": c.name, "city": c.city, "state": c.state, "hospital": (c.hospital.name if c.hospital else None)}

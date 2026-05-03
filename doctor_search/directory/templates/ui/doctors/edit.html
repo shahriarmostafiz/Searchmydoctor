@@ -4,7 +4,7 @@
 {% block admin_content %}
 <h3 class="mb-3">Edit Doctor</h3>
 
-<form method="post" id="doctorForm">
+<form method="post" enctype="multipart/form-data" id="doctorForm">
   {% csrf_token %}
 
   <div class="row g-3">
@@ -37,6 +37,33 @@
               <input class="form-control" type="email" name="email" value="{{ doctor.email|default:'' }}">
             </div>
           </div>
+
+          <div class="mb-3 mt-3">
+            <label class="form-label">Photo</label>
+            {% if doctor.photo %}
+              <div class="mb-2 d-flex align-items-center gap-3" id="currentPhotoWrap">
+                <img src="{{ doctor.photo }}" alt="Current photo" class="rounded"
+                     style="max-height:100px; max-width:100px; object-fit:cover;">
+                <div>
+                  <div class="small text-muted mb-1">Current photo</div>
+                  <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="remove_photo" value="1"
+                           id="removePhotoCheck">
+                    <label class="form-check-label text-danger small" for="removePhotoCheck">
+                      Remove photo
+                    </label>
+                  </div>
+                </div>
+              </div>
+            {% endif %}
+            <input class="form-control" type="file" name="photo" accept="image/*" id="photoInput">
+            <div class="form-text">Upload a new image to replace the current one.</div>
+            <div class="mt-2 d-none" id="photoPreviewWrap">
+              <img id="photoPreview" src="" alt="New preview" class="rounded"
+                   style="max-height:120px; max-width:120px; object-fit:cover;">
+            </div>
+          </div>
+
         </div>
       </div>
     </div>
@@ -46,7 +73,7 @@
         <div class="card-body">
           <h5 class="mb-3">Specializations</h5>
 
-          <label class="form-label">Select or type new (tags)</label>
+          <label class="form-label">Select or type new specializations</label>
           <select id="specSelect" name="specialization_names[]" class="form-select" multiple>
             {% for s in specializations %}
               <option value="{{ s.name }}" {% if s.name in selected_specs %}selected{% endif %}>
@@ -106,6 +133,21 @@
 
 <script>
 $(function () {
+
+  $("#photoInput").on("change", function() {
+    const file = this.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        $("#photoPreview").attr("src", e.target.result);
+        $("#photoPreviewWrap").removeClass("d-none");
+      };
+      reader.readAsDataURL(file);
+    } else {
+      $("#photoPreviewWrap").addClass("d-none");
+    }
+  });
+
   if (typeof $.fn.select2 !== "undefined") {
     $("#specSelect").select2({
       tags: true,
